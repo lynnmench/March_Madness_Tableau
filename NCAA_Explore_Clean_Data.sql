@@ -1,19 +1,20 @@
 -- Author: Lynn Menchaca
 -- Created: 07Sept2022
+/*
+The purpose of this file is to explore and clean the
+NCAA data set provided by Kaggle
 
--- The purpose of this file is to explore and clean the
--- NCAA data set provided by Kaggle
+Problems during coding:
+1) Converting the StartSeed column from varchar(2) to int data type
+      RIGHT(SEED, 2) AS StartSeed
+      ...
+      ALTER TABLE `Mens NCAA`.mncaatourneysummary
+      MODIFY COLUMN StartSeedChar INT;
+      LIMIT 1008,1; This was the line with the problem
+      Problem ended up coming from line 1009 Y16a -> 6a (couldn't int the char 'a')
+*/
 
--- Problems during coding:
--- 1) Converting the StartSeed column from varchar(2) to int data type
---       RIGHT(SEED, 2) AS StartSeed
---       ...
---       ALTER TABLE `Mens NCAA`.mncaatourneysummary
---       MODIFY COLUMN StartSeedChar INT;
---       LIMIT 1008,1; This was the line with the problem
---       Problem ended up coming from line 1009 Y16a -> 6a (couldn't int the char 'a')
-
-
+/*
 -- All the tables available:
 -- `Mens NCAA`.mncaatourneyseeds
 -- `Mens NCAA`.mncaatourneycompactresults
@@ -26,6 +27,8 @@
 -- `Mens NCAA`.MMasseyProdinals_133_CNG_POM
 -- `Mens NCAA`.cities
 -- `Mens NCAA`.mgamecities
+*/
+
 SELECT *
 FROM `Mens NCAA`.mgamecities
 WHERE CRType = 'NCAA'
@@ -41,7 +44,6 @@ SELECT result.Season as Season,
         result.WTeamID as TeamID,
 		seed.Seed AS Seed,
         REGEXP_REPLACE(Seed, '[^0-9]', '') AS StartSeed
-        -- CAST(StartSeed AS UNSIGNED) AS StartSeed
 FROM `Mens NCAA`.mncaatourneyseeds seed
 RIGHT JOIN `Mens NCAA`.mncaatourneycompactresults result
 				on result.Season = seed.Season
@@ -144,18 +146,22 @@ WHERE summ.Season = coach.Season
 SET SQL_SAFE_UPDATES = 1;
 
 
--- Crating table with just the NCAA games and cities
+-- Crating table with the NCAA games and cities
 DROP TABLE IF EXISTS `Mens NCAA`.mncaatourneycities;
 CREATE TABLE `Mens NCAA`.mncaatourneycities AS
 SELECT mgame.Season as Season,
 		mgame.DayNum as DayNum,
         mgame.WTeamID as TeamID,
+        mgame.CRType as CRType,
 		loc.City as City,
         loc.State as State
-FROM `Mens NCAA`.mgamecities mgame
-LEFT JOIN `Mens NCAA`.cities loc
+-- FROM `Mens NCAA`.mgamecities as mgame
+FROM `Mens NCAA`.cities as loc
+RIGHT JOIN `Mens NCAA`.mgamecities as mgame
 				on mgame.CityID = loc.CityID
-                AND CRType = 'NCAA';
+                and mgame.CRType = 'NCAA'
+WHERE mgame.CRType = 'NCAA';
+
 
 SELECT *
 FROM `Mens NCAA`.mncaatourneycities
@@ -165,6 +171,7 @@ LIMIT 100;
 SET SQL_SAFE_UPDATES = 0;
 ALTER TABLE `Mens NCAA`.mncaatourneysummary
 ADD City text;
+-- SET SQL_SAFE_UPDATES = 0;
 UPDATE `Mens NCAA`.mncaatourneysummary AS summ
 	LEFT JOIN `Mens NCAA`.mncaatourneycities AS loc
 				on summ.Season = loc.Season
@@ -176,6 +183,21 @@ WHERE summ.Season = loc.Season
 		and summ.DayNum = loc.DayNum;
 SET SQL_SAFE_UPDATES = 1;
 
+-- Adding State to the MNCAA Tourney Summary table
+SET SQL_SAFE_UPDATES = 0;
+ALTER TABLE `Mens NCAA`.mncaatourneysummary
+ADD State text;
+-- SET SQL_SAFE_UPDATES = 0;
+UPDATE `Mens NCAA`.mncaatourneysummary AS summ
+	LEFT JOIN `Mens NCAA`.mncaatourneycities AS loc
+				on summ.Season = loc.Season
+                and summ.TeamID = loc.TeamID
+                and summ.DayNum = loc.DayNum
+SET summ.State = loc.State
+WHERE summ.Season = loc.Season
+		and summ.TeamID = loc.TeamID
+		and summ.DayNum = loc.DayNum;
+SET SQL_SAFE_UPDATES = 1;
 
 
 SELECT *
@@ -183,9 +205,61 @@ FROM `Mens NCAA`.mncaatourneysummary
 LIMIT 100;
 
 -- Ways to test my mncaatourneysummary table
--- Check for null values
--- Looking to see if all 1st place winners for each season is listed
+-- Check for null or blank values for all rows
+SELECT *
+FROM `Mens NCAA`.mncaatourneysummary
+WHERE StartSeed IS NULL 
+	or StartSeed = ''
+    or FinalSeed IS NULL
+    or FinalSeed = ''
+    or TeamName IS NULL
+    or TeamName = ''
+    or ConfAbbrev IS NULL
+    or ConfAbbrev = ''
+    or CoachName IS NULL
+    or CoachName = '';
+    
+-- Check for null or blank values for rows I have data for
+SELECT *
+FROM `Mens NCAA`.mncaatourneysummary
+WHERE (MasseyPOMRank IS NULL 
+	or MasseyPOMRank = '')
+    and Season >= 2003;
 
+SELECT *
+FROM `Mens NCAA`.mncaatourneysummary
+WHERE (MasseyCNGRank IS NULL 
+	or MasseyCNGRank = '')
+    and Season >= 2004;
+    
+SELECT *
+FROM `Mens NCAA`.mncaatourneysummary
+WHERE (City IS NULL 
+	or City = ''
+    or State IS NULL
+    or State = '')
+    and Season >= 2009;
+    
+-- Looking to see if all 1st place winners for each season is listed
 SELECT *
 FROM `Mens NCAA`.mncaatourneysummary AS summ
 WHERE summ.FinalSeed = 1;
+
+
+/*
+-- Last check for duplicate rows
+SELECT count(Season), TeamID
+FROM `Mens NCAA`.mncaatourneysummary 
+GROUP BY TeamID;
+
+-- Show all columns data with duplicate rows
+SELECT *
+FROM `Mens NCAA`.mncaatourneysummary
+WHERE TeamID IN (
+    SELECT Season,
+			COUNT(TeamID) c
+    FROM `Mens NCAA`.mncaatourneysummary
+    GROUP BY Season
+    HAVING c > 1
+)
+/*
