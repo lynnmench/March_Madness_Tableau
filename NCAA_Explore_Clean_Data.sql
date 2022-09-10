@@ -23,8 +23,12 @@
 -- `Mens NCAA`.mncaatourneysummary
 -- `Mens NCAA`.mmasseyordinals
 -- `Mens NCAA`.mteamcoaches
+-- `Mens NCAA`.MMasseyProdinals_133_CNG_POM
+-- `Mens NCAA`.cities
+-- `Mens NCAA`.mgamecities
 SELECT *
-FROM `Mens NCAA`.mteamcoaches
+FROM `Mens NCAA`.mgamecities
+WHERE CRType = 'NCAA'
 LIMIT 100;
 
 
@@ -70,13 +74,33 @@ ADD FinalSeed INT AS (CASE
 					ELSE 32
 					END);
 
--- Adding M Massey Ordinals Ranking to the MNCAA Tourney Summary table
--- SELECT summ.*,
--- 		massey.OrdinalRank AS OrdinalRank
--- FROM `Mens NCAA`.mmasseyordinals AS massey
--- RIGHT JOIN `Mens NCAA`.mncaatourneysummary AS summ
--- 				on summ.TeamID = massey.TeamID
---                 AND massey.RankingDayNum = 133;
+-- Adding M Massey Ordinals Ranking for POM to the MNCAA Tourney Summary table
+SET SQL_SAFE_UPDATES = 0;
+ALTER TABLE `Mens NCAA`.mncaatourneysummary
+ADD MasseyPOMRank text;
+UPDATE `Mens NCAA`.mncaatourneysummary AS summ
+	LEFT JOIN `Mens NCAA`.MMasseyProdinals_133_CNG_POM AS mass
+				on summ.Season = mass.Season
+                AND summ.TeamID = mass.TeamID
+                AND mass.SystemName = 'POM'
+SET summ.MasseyPOMRank = mass.OrdinalRank
+WHERE summ.Season = mass.Season
+		AND summ.TeamID = mass.TeamID;
+SET SQL_SAFE_UPDATES = 1;
+
+-- Adding M Massey Ordinals Ranking for CNG to the MNCAA Tourney Summary table
+SET SQL_SAFE_UPDATES = 0;
+ALTER TABLE `Mens NCAA`.mncaatourneysummary
+ADD MasseyCNGRank text;
+UPDATE `Mens NCAA`.mncaatourneysummary AS summ
+	LEFT JOIN `Mens NCAA`.MMasseyProdinals_133_CNG_POM AS mass
+				on summ.Season = mass.Season
+                AND summ.TeamID = mass.TeamID
+                AND mass.SystemName = 'CNG'
+SET summ.MasseyCNGRank = mass.OrdinalRank
+WHERE summ.Season = mass.Season
+		AND summ.TeamID = mass.TeamID;
+SET SQL_SAFE_UPDATES = 1;
 
 -- Adding Team Name to the MNCAA Tourney Summary table
 SET SQL_SAFE_UPDATES = 0;
@@ -118,6 +142,40 @@ WHERE summ.Season = coach.Season
 		and summ.TeamID = coach.TeamID
 		and coach.LastDayNum > 133;
 SET SQL_SAFE_UPDATES = 1;
+
+
+-- Crating table with just the NCAA games and cities
+DROP TABLE IF EXISTS `Mens NCAA`.mncaatourneycities;
+CREATE TABLE `Mens NCAA`.mncaatourneycities AS
+SELECT mgame.Season as Season,
+		mgame.DayNum as DayNum,
+        mgame.WTeamID as TeamID,
+		loc.City as City,
+        loc.State as State
+FROM `Mens NCAA`.mgamecities mgame
+LEFT JOIN `Mens NCAA`.cities loc
+				on mgame.CityID = loc.CityID
+                AND CRType = 'NCAA';
+
+SELECT *
+FROM `Mens NCAA`.mncaatourneycities
+LIMIT 100;
+
+-- Adding City to the MNCAA Tourney Summary table
+SET SQL_SAFE_UPDATES = 0;
+ALTER TABLE `Mens NCAA`.mncaatourneysummary
+ADD City text;
+UPDATE `Mens NCAA`.mncaatourneysummary AS summ
+	LEFT JOIN `Mens NCAA`.mncaatourneycities AS loc
+				on summ.Season = loc.Season
+                and summ.TeamID = loc.TeamID
+                and summ.DayNum = loc.DayNum
+SET summ.City = loc.City
+WHERE summ.Season = loc.Season
+		and summ.TeamID = loc.TeamID
+		and summ.DayNum = loc.DayNum;
+SET SQL_SAFE_UPDATES = 1;
+
 
 
 SELECT *
